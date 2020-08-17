@@ -19,6 +19,7 @@
 IMAGE ?= rtisma1/webhook-go-server:latest
 
 image/webhook-server: $(shell find . -name '*.go')
+	./init-build.sh
 	CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o $@ ./cmd/webhook-server
 
 .PHONY: docker-image
