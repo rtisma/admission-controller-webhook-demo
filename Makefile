@@ -29,3 +29,13 @@ docker-image: image/webhook-server
 .PHONY: push-image
 push-image: docker-image
 	docker push $(IMAGE)
+
+run-server: image/webhook-server
+	@echo "Running server"
+	./image/webhook-server &
+
+send-request:
+	cd ./examples/ && ./run-server-request.sh
+
+
+

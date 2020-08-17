@@ -26,9 +26,11 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"strconv"
 )
 
 const (
+	useTLS = false
 	tlsDir      = `/run/secrets/tls`
 	tlsCertFile = `tls.crt`
 	tlsKeyFile  = `tls.key`
@@ -37,8 +39,8 @@ const (
 var (
 	podResource    = metav1.GroupVersionResource{Version: "v1", Resource: "pods"}
 	overrideVolumePathCollision = true
-	targetContainerName = "something"
-	scratchDirName = "icgc-argo-scratch"
+	targetContainerName = "busybox"
+	scratchDirName = "/icgc-argo-scratch"
 	scratchVolumeName = "icgc-argo-scratch"
 )
 
@@ -140,7 +142,7 @@ func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, err
 
 	var container, containerPos, err2 = findTargetContainer(&pod, targetContainerName)
 	if err2 != nil {
-		log.Println("Did not find container with name '", targetContainerName, "'. Skipping mutation")
+		log.Println("Did not find container with name '",targetContainerName,"'. Skipping mutation")
 		return patches, nil
 	}
 
@@ -150,7 +152,7 @@ func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, err
 		//rtisma  container.VolumeMounts = append(container.VolumeMounts, volumeMount)
 		patches = append(patches, patchOperation{
 			Op:    "add",
-			Path:  "/spec/containers/"+string(containerPos)+"/volumeMounts",
+			Path:  "/spec/containers/"+strconv.Itoa(containerPos)+"/volumeMounts",
 			Value: volumeMount,
 		})
 
@@ -160,7 +162,7 @@ func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, err
 			//rtisma    containerVolumeMount = &volumeMount
 			patches = append(patches, patchOperation{
 				Op:    "replace",
-				Path:  "/spec/containers/"+string(containerPos)+"/volumeMounts/"+string(volumeMountPos),
+				Path:  "/spec/containers/"+strconv.Itoa(containerPos)+"/volumeMounts/"+strconv.Itoa(volumeMountPos),
 				Value: volumeMount,
 			})
 		} else {
@@ -217,8 +219,12 @@ func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, err
 }
 
 func main() {
-	certPath := filepath.Join(tlsDir, tlsCertFile)
-	keyPath := filepath.Join(tlsDir, tlsKeyFile)
+	var certPath = ""
+	var keyPath = ""
+	if useTLS{
+		certPath = filepath.Join(tlsDir, tlsCertFile)
+		keyPath = filepath.Join(tlsDir, tlsKeyFile)
+	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/mutate", admitFuncHandler(applySecurityDefaults))
@@ -228,5 +234,12 @@ func main() {
 		Addr:    ":8443",
 		Handler: mux,
 	}
-	log.Fatal(server.ListenAndServeTLS(certPath, keyPath))
+	if useTLS{
+		log.Println("Starting server on port 8443 with TLS ENABLED")
+		log.Fatal(server.ListenAndServeTLS(certPath, keyPath))
+	} else {
+		log.Println("Starting server on port 8443 with TLS DISABLED")
+		log.Fatal(server.ListenAndServe())
+	}
+	log.Println("Stopped server")
 }
