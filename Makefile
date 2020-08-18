@@ -22,20 +22,30 @@ image/webhook-server: $(shell find . -name '*.go')
 	./init-build.sh
 	CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o $@ ./cmd/webhook-server
 
-.PHONY: docker-image
-docker-image: image/webhook-server
+.PHONY: dev-docker-image
+dev-docker-image: image/webhook-server
 	docker build -t $(IMAGE) image/
 
-.PHONY: push-image
-push-image: docker-image
+.PHONY: dev-push-image
+dev-push-image: docker-image
 	docker push $(IMAGE)
 
-run-server: image/webhook-server
+dev-run-server: image/webhook-server
 	@echo "Running server"
 	./image/webhook-server &
 
+docker-image:
+	docker build -t $(IMAGE) ./
+
+push-image: docker-image
+	docker push $(IMAGE)
+
 send-request:
-	cd ./examples/ && ./run-server-request.sh
+	cd ./examples/ && ./run-server-request.sh 8080
+
+start-docker:
+	docker-compose up --build -d
 
 
-
+stop-docker:
+	docker-compose down -v

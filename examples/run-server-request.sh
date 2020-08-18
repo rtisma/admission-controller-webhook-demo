@@ -1,8 +1,9 @@
 #!/bin/bash
+port=$1
 response=$(curl -s -XPOST \
 	-H 'Content-Type: application/json' \
 	-d "@admission-review.example.json" \
-	'http://localhost:8443/mutate' | jq . )
+	"http://localhost:${port}/mutate" | jq . )
 
 echo "Response: "
 echo "$response"
