@@ -17,20 +17,18 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	// "errors"
 	"fmt"
 	"k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"encoding/json"
 	"log"
 	"net/http"
-	"path/filepath"
 	"strconv"
 )
 
 const (
-	useTLS = false
 	tlsDir      = `/run/secrets/tls`
 	tlsCertFile = `tls.crt`
 	tlsKeyFile  = `tls.key`
@@ -44,48 +42,6 @@ var (
 	scratchVolumeName = "icgc-argo-scratch"
 )
 
-// Checks of a pod spec contains a volume with
-func hasVolume(pod *corev1.Pod, targetVolumeName string) bool {
-	if pod.Spec.Volumes != nil {
-		for _, volume := range pod.Spec.Volumes {
-			if volume.Name == targetVolumeName {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func findTargetContainer(pod *corev1.Pod, targetContainerName string) (*corev1.Container, int, error) {
-	if pod.Spec.Containers != nil {
-		for pos, container := range pod.Spec.Containers {
-			if container.Name == targetContainerName {
-				return &container, pos, nil
-			}
-		}
-	}
-	return nil, -1, fmt.Errorf("container with name %s does not exist", targetContainerName)
-}
-
-func extractPodSpec(req *v1beta1.AdmissionRequest) (corev1.Pod, error){
-	pod := corev1.Pod{}
-	// This handler should only get called on Pod objects as per the MutatingWebhookConfiguration in the YAML file.
-	// However, if (for whatever reason) this gets invoked on an object of a different kind, issue a log message but
-	// let the object request pass through otherwise.
-	if req.Resource != podResource {
-		return pod, fmt.Errorf( "expect resource to be %s", podResource)
-	}
-
-	// Parse the Pod object.
-	raw := req.Object.Raw
-	log.Println("ROB_DUMPPPPPPPPPPPPPPPPPP", string(raw))
-	if _, _, err := universalDeserializer.Decode(raw, nil, &pod); err != nil {
-		return pod, fmt.Errorf("could not deserialize pod object: %v", err)
-	}
-	return pod, nil
-}
-
-
 // applySecurityDefaults implements the logic of our example admission controller webhook. For every pod that is created
 // (outside of Kubernetes namespaces), it first checks if `runAsNonRoot` is set. If it is not, it is set to a default
 // value of `false`. Furthermore, if `runAsUser` is not set (and `runAsNonRoot` was not initially set), it defaults
@@ -95,24 +51,6 @@ func extractPodSpec(req *v1beta1.AdmissionRequest) (corev1.Pod, error){
 // not conflict with the `runAsUser` setting - i.e., if the former is set to `true`, the latter must not be `0`.
 // Note that we combine both the setting of defaults and the check for potential conflicts in one webhook; ideally,
 // the latter would be performed in a validating webhook admission controller.
-
-func hasVolumeMount(container *corev1.Container) bool {
-	for _, volMount:= range container.VolumeMounts {
-		if volMount.Name == scratchVolumeName{
-			return true
-		}
-	}
-	return false
-}
-
-func findVolumeMount(container *corev1.Container) (*corev1.VolumeMount, int) {
-	for pos, volMount:= range container.VolumeMounts {
-		if volMount.Name == scratchVolumeName{
-			return &volMount, pos
-		}
-	}
-	return nil, -1
-}
 
 func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, error) {
 
@@ -179,67 +117,26 @@ func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, err
 	fmt.Println(string(b))
 
 	return patches, nil
-
-
-
-
-	//// Retrieve the `runAsNonRoot` and `runAsUser` values.
-	//var runAsNonRoot *bool
-	//var runAsUser *int64
-	//
-	//
-	//}
-	//if pod.Spec.SecurityContext != nil {
-	//	runAsNonRoot = pod.Spec.SecurityContext.RunAsNonRoot
-	//	runAsUser = pod.Spec.SecurityContext.RunAsUser
-	//}
-	//
-	//// Create patch operations to apply sensible defaults, if those options are not set explicitly.
-	//if runAsNonRoot == nil {
-	//	patches = append(patches, patchOperation{
-	//		Op:    "add",
-	//		Path:  "/spec/securityContext/runAsNonRoot",
-	//		// The value must not be true if runAsUser is set to 0, as otherwise we would create a conflicting
-	//		// configuration ourselves.
-	//		Value: runAsUser == nil || *runAsUser != 0,
-	//	})
-	//
-	//	if runAsUser == nil {
-	//		patches = append(patches, patchOperation{
-	//			Op:    "add",
-	//			Path:  "/spec/securityContext/runAsUser",
-	//			Value: 1234,
-	//		})
-	//	}
-	//} else if *runAsNonRoot == true && (runAsUser != nil && *runAsUser == 0) {
-	//	// Make sure that the settings are not contradictory, and fail the object creation if they are.
-	//	return nil, errors.New("runAsNonRoot specified, but runAsUser set to 0 (the root user)")
-	//}
-
 }
 
 func main() {
-	var certPath = ""
-	var keyPath = ""
-	if useTLS{
-		certPath = filepath.Join(tlsDir, tlsCertFile)
-		keyPath = filepath.Join(tlsDir, tlsKeyFile)
-	}
+	var cfg = parseConfig()
 
 	mux := http.NewServeMux()
 	mux.Handle("/mutate", admitFuncHandler(applySecurityDefaults))
 	server := &http.Server{
 		// We listen on port 8443 such that we do not need root privileges or extra capabilities for this server.
 		// The Service object will take care of mapping this port to the HTTPS port 443.
-		Addr:    ":8443",
+		Addr:    ":"+cfg.Server.Port,
 		Handler: mux,
 	}
-	if useTLS{
-		log.Println("Starting server on port 8443 with TLS ENABLED")
-		log.Fatal(server.ListenAndServeTLS(certPath, keyPath))
+
+	log.Println("Starting server on port ",cfg.Server.Port," with TLS ENABLED=",cfg.Server.SSL.Enable)
+	if cfg.Server.SSL.Enable {
+		log.Fatal(server.ListenAndServeTLS(cfg.Server.SSL.CertPath, cfg.Server.SSL.KeyPath))
 	} else {
-		log.Println("Starting server on port 8443 with TLS DISABLED")
 		log.Fatal(server.ListenAndServe())
 	}
 	log.Println("Stopped server")
 }
+

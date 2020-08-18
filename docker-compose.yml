@@ -1,0 +1,20 @@
+version: '3.7'
+services:
+  webhook-server:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: webhook-server
+    environment:
+      SERVER_PORT: 8080
+      SERVER_SSL_ENABLE: "false"
+      APP_OVERRIDE_VOLUME_COLLISIONS: "true"
+      APP_TARGET_CONTAINER_NAME: "busybox"
+      APP_EMPTYDIR_VOLUME_NAME: "icgc-argo-scratch"
+      APP_EMPTYDIR_MOUNT_PATH:  "/icgc-argo-scratch"
+    expose:
+      - "8080"
+    ports:
+      - "9090:8080"
+
+
