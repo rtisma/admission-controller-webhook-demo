@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/go-playground/validator"
 	"github.com/kelseyhightower/envconfig"
-	"github.com/mcuadros/go-defaults"
+	"gopkg.in/mcuadros/go-defaults.v1"
 	"gopkg.in/yaml.v2"
 	"os"
 )
@@ -57,16 +57,16 @@ type Config struct {
 		Port string `default:"8080", validate:"required", yaml:"port", envconfig:"SERVER_PORT"`
 		SSL  struct {
 			Enable   bool   `default:"false", validate:"required", yaml:"enable", envconfig:"SERVER_SSL_ENABLE"`
-			CertPath string `yaml:"certPath", envconfig:"SERVER_SSL_CERT_PATH"`
-			KeyPath  string `yaml:"keyPath", envconfig:"SERVER_SSL_KEY_PATH"`
+			CertPath string `yaml:"certPath", envconfig:"SERVER_SSL_CERTPATH"`
+			KeyPath  string `yaml:"keyPath", envconfig:"SERVER_SSL_KEYPATH"`
 		} `yaml:"ssl"`
 	} `yaml:"server"`
 	App struct {
-		OverrideVolumeCollisions bool   `default:"false", validate:"required", yaml:"overrideVolumeCollisions", envconfig:"APP_OVERRIDE_VOLUME_COLLISIONS"`
-		TargetContainerName      string `validate:"required", yaml:"targetContainerName", envconfig:"APP_TARGET_CONTAINER_NAME"`
+		OverrideVolumeCollisions bool   `default:"false", validate:"required", yaml:"overrideVolumeCollisions", envconfig:"APP_OVERRIDEVOLUMECOLLISIONS"`
+		TargetContainerName      string `validate:"required", yaml:"targetContainerName", envconfig:"APP_TARGETCONTAINERNAME"`
 		EmptyDir                 struct {
-			VolumeName string `validate:"required", yaml:"volumeName", envconfig:"APP_EMPTYDIR_VOLUME_NAME"`
-			MountPath  string `validate:"required", yaml:"mountPath", envconfig:"APP_EMPTYDIR_MOUNT_PATH"`
+			VolumeName string `validate:"required", yaml:"volumeName", envconfig:"APP_EMPTYDIR_VOLUMENAME"`
+			MountPath  string `validate:"required", yaml:"mountPath", envconfig:"APP_EMPTYDIR_MOUNTPATH"`
 		} `yaml:"emptydir"`
 	} `yaml:"app"`
 }
