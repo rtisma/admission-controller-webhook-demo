@@ -119,7 +119,7 @@ func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, err
 
 	//TODO: iterate and dump patches, so they can be applied to incomming request. render and check its ok
 	b2, err2 := json.Marshal(patches)
-	if  err2 != nil {
+	if  err2 == nil {
 		fmt.Println("Patches: ", string(b2))
 	}
 
