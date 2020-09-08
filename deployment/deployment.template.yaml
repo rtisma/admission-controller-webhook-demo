@@ -29,6 +29,23 @@ spec:
         - name: webhook-tls-certs
           mountPath: /run/secrets/tls
           readOnly: true
+        env:
+          - name: SERVER_PORT
+            value: "8443"
+          - name: SERVER_SSL_ENABLE
+            value: "true"
+          - name: SERVER_SSL_CERTPATH
+            value: /run/secrets/tls/tls.crt
+          - name: SERVER_SSL_KEYPATH
+            value: /run/secrets/tls/tls.key
+          - name: APP_OVERRIDEVOLUMECOLLISIONS
+            value: "true"
+          - name: APP_TARGETCONTAINERNAME
+            value: "busybox"
+          - name: APP_EMPTYDIR_VOLUMENAME
+            value: "icgc-argo-scratch"
+          - name: APP_EMPTYDIR_MOUNTPATH
+            value: "/icgc-argo-scratch"
       volumes:
       - name: webhook-tls-certs
         secret:
