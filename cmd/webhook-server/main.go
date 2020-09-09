@@ -80,7 +80,7 @@ func appendVolumeMountPatch(patches []patchOperation, containerPos int, volumeMo
 	if containerVolumeMount == nil{
 		patches = append(patches, patchOperation{
 			Op:    "add",
-			Path:  "/spec/containers/"+strconv.Itoa(containerPos)+"/emptyDirVolumeMounts",
+			Path:  "/spec/containers/"+strconv.Itoa(containerPos)+"/volumeMounts",
 			Value: emptyDirVolumeMounts,
 		})
 
@@ -89,7 +89,7 @@ func appendVolumeMountPatch(patches []patchOperation, containerPos int, volumeMo
 			log.Println("Container volume mount ",scratchVolumeName," already exists but overriding ")
 			patches = append(patches, patchOperation{
 				Op:    "replace",
-				Path:  "/spec/containers/"+strconv.Itoa(containerPos)+"/emptyDirVolumeMounts/"+strconv.Itoa(volumeMountPos),
+				Path:  "/spec/containers/"+strconv.Itoa(containerPos)+"/volumeMounts/"+strconv.Itoa(volumeMountPos),
 				Value: emptyDirVolumeMounts,
 			})
 		} else {
