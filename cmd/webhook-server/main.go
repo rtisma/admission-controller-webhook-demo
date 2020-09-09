@@ -73,7 +73,7 @@ func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, err
 
 	//TODO: rtisma not sure if this is right
 	//rtisma   pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
-	var emptyDirData = EmptyDirData{ Name: scratchVolumeName}
+	var emptyDirData = EmptyDirData{ Name: scratchVolumeName, EmptyDir: struct {}{}}
 	patches = append(patches, patchOperation{
 		Op:    "add",
 		Path:  "/spec/volumes",
