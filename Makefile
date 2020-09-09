@@ -16,23 +16,16 @@
 
 .DEFAULT_GOAL := docker-image
 
-IMAGE ?= rtisma1/webhook-go-server:latest
+K8S_NAMESPACE := webhook-demo
+KUBECTL_EXE := /usr/bin/kubectl
+K8S_CMD := $(KUBECTL_EXE) -n $(K8S_NAMESPACE)
+DOCKER_ACCOUNT = rtisma1
+IMAGE ?= $(DOCKER_ACCOUNT)/webhook-go-server:latest
 
+# this is the legacy build that is also replicated in the Dockerfile
 image/webhook-server: $(shell find . -name '*.go')
 	./init-build.sh
 	CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o $@ ./cmd/webhook-server
-
-.PHONY: dev-docker-image
-dev-docker-image: image/webhook-server
-	docker build -t $(IMAGE) image/
-
-.PHONY: dev-push-image
-dev-push-image: docker-image
-	docker push $(IMAGE)
-
-dev-run-server: image/webhook-server
-	@echo "Running server"
-	./image/webhook-server &
 
 docker-image:
 	docker build -t $(IMAGE) ./
@@ -46,6 +39,15 @@ send-request:
 start-docker:
 	docker-compose up --build -d
 
-
 stop-docker:
 	docker-compose down -v
+
+k8s-destroy:
+	@./destroy.sh
+
+k8s-deploy:
+	@./deploy.sh
+
+k8s-test:
+	@$(K8S_CMD) apply -f ./examples/pod-with-defaults.yaml
+	@$(K8S_CMD) get pods -oyaml pod-with-defaults
