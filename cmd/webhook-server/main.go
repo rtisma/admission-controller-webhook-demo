@@ -51,6 +51,10 @@ var (
 // not conflict with the `runAsUser` setting - i.e., if the former is set to `true`, the latter must not be `0`.
 // Note that we combine both the setting of defaults and the check for potential conflicts in one webhook; ideally,
 // the latter would be performed in a validating webhook admission controller.
+type EmptyDirData struct {
+	Name string `json:"name"`
+	EmptyDir interface{} `json:"emptyDir"`
+}
 
 func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, error) {
 
@@ -67,15 +71,13 @@ func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, err
 		return patches, nil
 	}
 
-	var volumeSource = corev1.VolumeSource{EmptyDir: nil}
-	var volume  = corev1.Volume{Name: scratchVolumeName, VolumeSource: volumeSource}
-
 	//TODO: rtisma not sure if this is right
 	//rtisma   pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
+	var emptyDirData = EmptyDirData{ Name: scratchVolumeName}
 	patches = append(patches, patchOperation{
 		Op:    "add",
 		Path:  "/spec/volumes",
-		Value: volume,
+		Value: emptyDirData,
 	})
 
 	var container, containerPos, err2 = findTargetContainer(&pod, targetContainerName)
