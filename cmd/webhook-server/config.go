@@ -62,6 +62,7 @@ type Config struct {
 		} `yaml:"ssl"`
 	} `yaml:"server"`
 	App struct {
+		Debug bool `default:"false", validate:"required",yaml:"debug",envconfig:"APP_DEBUG"`
 		OverrideVolumeCollisions bool   `default:"false", validate:"required", yaml:"overrideVolumeCollisions", envconfig:"APP_OVERRIDEVOLUMECOLLISIONS"`
 		TargetContainerName      string `validate:"required", yaml:"targetContainerName", envconfig:"APP_TARGETCONTAINERNAME"`
 		EmptyDir                 struct {

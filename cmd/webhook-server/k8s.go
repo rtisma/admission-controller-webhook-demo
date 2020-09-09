@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"k8s.io/api/admission/v1beta1"
 	"k8s.io/api/core/v1"
-	"log"
 )
 
 // Checks of a pod spec contains a volume with
@@ -41,7 +40,6 @@ func extractPodSpec(req *v1beta1.AdmissionRequest) (v1.Pod, error) {
 
 	// Parse the Pod object.
 	raw := req.Object.Raw
-	log.Println("ROB_DUMPPPPPPPPPPPPPPPPPP", string(raw))
 	if _, _, err := universalDeserializer.Decode(raw, nil, &pod); err != nil {
 		return pod, fmt.Errorf("could not deserialize pod object: %v", err)
 	}

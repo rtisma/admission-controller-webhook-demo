@@ -18,8 +18,7 @@ package main
 
 import (
 	"encoding/json"
-	// "errors"
-	"fmt"
+
 	"k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,51 +35,107 @@ const (
 
 var (
 	podResource    = metav1.GroupVersionResource{Version: "v1", Resource: "pods"}
+
+	// Defaults
 	overrideVolumePathCollision = true
 	targetContainerName = "busybox"
 	scratchDirName = "/icgc-argo-scratch"
 	scratchVolumeName = "icgc-argo-scratch"
+	debug = false
 )
 
-// applySecurityDefaults implements the logic of our example admission controller webhook. For every pod that is created
-// (outside of Kubernetes namespaces), it first checks if `runAsNonRoot` is set. If it is not, it is set to a default
-// value of `false`. Furthermore, if `runAsUser` is not set (and `runAsNonRoot` was not initially set), it defaults
-// `runAsUser` to a value of 1234.
-//
-// To demonstrate how requests can be rejected, this webhook further validates that the `runAsNonRoot` setting does
-// not conflict with the `runAsUser` setting - i.e., if the former is set to `true`, the latter must not be `0`.
-// Note that we combine both the setting of defaults and the check for potential conflicts in one webhook; ideally,
-// the latter would be performed in a validating webhook admission controller.
 type EmptyDirData struct {
 	Name string `json:"name"`
 	EmptyDir interface{} `json:"emptyDir"`
 }
 
-func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, error) {
+func buildEmptyDirDatas() []EmptyDirData{
+	var emptyDirData = EmptyDirData{ Name: scratchVolumeName, EmptyDir: struct {}{}}
+	var emptyDirDatas []EmptyDirData
+	return append(emptyDirDatas, emptyDirData)
+}
 
-	//var pod *corev1.Pod
-	//var err *error
+func buildEmptyDirVolumeMounts() []corev1.VolumeMount{
+	var volumeMount = corev1.VolumeMount{Name: scratchVolumeName, MountPath: scratchDirName}
+	var volumeMounts []corev1.VolumeMount
+	return append(volumeMounts, volumeMount)
+}
+
+// Adds the correct Json Patch to the patches variable for the volumes section
+func appendEmptyDirPatch(patches []patchOperation) []patchOperation {
+	var emptyDirDatas = buildEmptyDirDatas()
+	patches = append(patches, patchOperation{
+		Op:    "add",
+		Path:  "/spec/volumes",
+		Value: emptyDirDatas,
+	})
+	return patches
+}
+
+// Adds the correct Json Patch to the patches variable for the container volume mounts section
+func appendVolumeMountPatch(patches []patchOperation, containerPos int, volumeMountPos int,
+	containerVolumeMount *corev1.VolumeMount) []patchOperation{
+	var emptyDirVolumeMounts = buildEmptyDirVolumeMounts()
+
+	if containerVolumeMount == nil{
+		patches = append(patches, patchOperation{
+			Op:    "add",
+			Path:  "/spec/containers/"+strconv.Itoa(containerPos)+"/emptyDirVolumeMounts",
+			Value: emptyDirVolumeMounts,
+		})
+
+	} else {
+		if overrideVolumePathCollision{
+			log.Println("Container volume mount ",scratchVolumeName," already exists but overriding ")
+			patches = append(patches, patchOperation{
+				Op:    "replace",
+				Path:  "/spec/containers/"+strconv.Itoa(containerPos)+"/emptyDirVolumeMounts/"+strconv.Itoa(volumeMountPos),
+				Value: emptyDirVolumeMounts,
+			})
+		} else {
+			log.Println("Container volume mount ",scratchVolumeName," already exists, and NOT overriding ")
+		}
+	}
+	return patches
+}
+
+func dumpPodSpecs(pod *corev1.Pod){
+	out, err := json.Marshal(pod)
+	if  err == nil {
+		log.Println("Dump Pod spec before mutation: ", string(out))
+		log.Println("********************************************************")
+	} else {
+		log.Println("ERROR DUMPING POD SPEC: ", err)
+	}
+
+}
+
+func dumpPatches(patches []patchOperation) {
+	out, err := json.Marshal(patches)
+	if  err == nil {
+		log.Println("Dump Patches: ", string(out))
+		log.Println("********************************************************")
+	} else {
+		log.Println("ERROR DUMPING PATCHES: ", err)
+	}
+}
+
+// Core mutation logic
+func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, error) {
 	var patches []patchOperation
+
 	var pod, err = extractPodSpec(req)
 	if err != nil {
 		return patches, err
 	}
+
 
 	if hasVolume(&pod, scratchVolumeName){
 		log.Println("Already contains the scratch volume name: ", scratchVolumeName)
 		return patches, nil
 	}
 
-	//TODO: rtisma not sure if this is right
-	//rtisma   pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
-	var emptyDirData = EmptyDirData{ Name: scratchVolumeName, EmptyDir: struct {}{}}
-	var emptyDirDatas []EmptyDirData
-	emptyDirDatas = append(emptyDirDatas, emptyDirData)
-	patches = append(patches, patchOperation{
-		Op:    "add",
-		Path:  "/spec/volumes",
-		Value: emptyDirDatas,
-	})
+	patches = appendEmptyDirPatch(patches)
 
 	var container, containerPos, err2 = findTargetContainer(&pod, targetContainerName)
 	if err2 != nil {
@@ -89,52 +144,26 @@ func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, err
 	}
 
 	var containerVolumeMount, volumeMountPos = findVolumeMount(container)
-	var volumeMount = corev1.VolumeMount{Name: scratchVolumeName, MountPath: scratchDirName}
-	var volumeMounts []corev1.VolumeMount
-	volumeMounts = append(volumeMounts, volumeMount)
-	if containerVolumeMount == nil{
-		//rtisma  container.VolumeMounts = append(container.VolumeMounts, volumeMount)
-		patches = append(patches, patchOperation{
-			Op:    "add",
-			Path:  "/spec/containers/"+strconv.Itoa(containerPos)+"/volumeMounts",
-			Value: volumeMounts,
-		})
+	patches =  appendVolumeMountPatch(patches, containerPos, volumeMountPos, containerVolumeMount)
 
-	} else {
-		if overrideVolumePathCollision{
-			log.Println("Container volume mount ",scratchVolumeName," already exists but overriding ")
-			//rtisma    containerVolumeMount = &volumeMount
-			patches = append(patches, patchOperation{
-				Op:    "replace",
-				Path:  "/spec/containers/"+strconv.Itoa(containerPos)+"/volumeMounts/"+strconv.Itoa(volumeMountPos),
-				Value: volumeMounts,
-			})
-		} else {
-			log.Println("Container volume mount ",scratchVolumeName," already exists, and NOT overriding ")
-		}
-	}
-
-	//TEST
-	b, err := json.Marshal(pod)
-	if err != nil {
-		fmt.Println(err)
-		return patches, nil
-	}
-	fmt.Println("POD: ",string(b))
-
-
-	//TODO: iterate and dump patches, so they can be applied to incomming request. render and check its ok
-	b2, err2 := json.Marshal(patches)
-	if  err2 == nil {
-		fmt.Println("Patches: ", string(b2))
+	if debug {
+		dumpPodSpecs(&pod)
+		dumpPatches(patches)
 	}
 
 	return patches, nil
 }
 
 func main() {
+	// Bind the config to the variables
 	var cfg = parseConfig()
+	targetContainerName = cfg.App.TargetContainerName
+	overrideVolumePathCollision = cfg.App.OverrideVolumeCollisions
+	scratchDirName = cfg.App.EmptyDir.MountPath
+	scratchVolumeName = cfg.App.EmptyDir.VolumeName
+	debug = cfg.App.Debug
 
+	// Start server
 	mux := http.NewServeMux()
 	mux.Handle("/mutate", admitFuncHandler(applySecurityDefaults))
 	server := &http.Server{

@@ -38,6 +38,8 @@ spec:
             value: /run/secrets/tls/tls.crt
           - name: SERVER_SSL_KEYPATH
             value: /run/secrets/tls/tls.key
+          - name: APP_DEBUG
+            value: "true"
           - name: APP_OVERRIDEVOLUMECOLLISIONS
             value: "true"
           - name: APP_TARGETCONTAINERNAME
