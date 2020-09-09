@@ -74,10 +74,12 @@ func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, err
 	//TODO: rtisma not sure if this is right
 	//rtisma   pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
 	var emptyDirData = EmptyDirData{ Name: scratchVolumeName, EmptyDir: struct {}{}}
+	var emptyDirDatas []EmptyDirData
+	emptyDirDatas = append(emptyDirDatas, emptyDirData)
 	patches = append(patches, patchOperation{
 		Op:    "add",
 		Path:  "/spec/volumes",
-		Value: emptyDirData,
+		Value: emptyDirDatas,
 	})
 
 	var container, containerPos, err2 = findTargetContainer(&pod, targetContainerName)
@@ -88,12 +90,14 @@ func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, err
 
 	var containerVolumeMount, volumeMountPos = findVolumeMount(container)
 	var volumeMount = corev1.VolumeMount{Name: scratchVolumeName, MountPath: scratchDirName}
+	var volumeMounts []corev1.VolumeMount
+	volumeMounts = append(volumeMounts, volumeMount)
 	if containerVolumeMount == nil{
 		//rtisma  container.VolumeMounts = append(container.VolumeMounts, volumeMount)
 		patches = append(patches, patchOperation{
 			Op:    "add",
 			Path:  "/spec/containers/"+strconv.Itoa(containerPos)+"/volumeMounts",
-			Value: volumeMount,
+			Value: volumeMounts,
 		})
 
 	} else {
@@ -103,7 +107,7 @@ func applySecurityDefaults(req *v1beta1.AdmissionRequest) ([]patchOperation, err
 			patches = append(patches, patchOperation{
 				Op:    "replace",
 				Path:  "/spec/containers/"+strconv.Itoa(containerPos)+"/volumeMounts/"+strconv.Itoa(volumeMountPos),
-				Value: volumeMount,
+				Value: volumeMounts,
 			})
 		} else {
 			log.Println("Container volume mount ",scratchVolumeName," already exists, and NOT overriding ")
